@@ -1,7 +1,7 @@
 /*
  * SPDX-License-Identifier: Apache-2.0
  */
-export enum Roles {User, DPS, Bank}
+export enum Roles {User = "Водитель", DPS = "Сотрудник ДПС", Bank = "Банк"}
 interface IInfo{
     users: IUser[];
     licenses: ILicense[];
@@ -18,9 +18,9 @@ interface IUser{
     FIO: string;
     experience: string;
     balance: number;
-    license?: ILicense;
-    cars?: ICar[];
-    tickets?: ITicket[];
+    license: ILicense;
+    cars: ICar[];
+    tickets: ITicket[];
     role: Roles;
 }
 interface ILicense{
@@ -31,6 +31,8 @@ interface ILicense{
 
 interface ICar{
     title: string;
+    price: string;
+    lifetime: string;
     category: string;
 }
 

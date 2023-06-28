@@ -17,7 +17,14 @@ export class FabCar extends Contract {
                     FIO: 'bank',
                     experience: '0',
                     balance: 1000,
-                    role: Roles.Bank
+                    role: Roles.Bank,
+                    tickets: [],
+                    cars: [],
+                    license: {
+                        id: '',
+                        category: [],
+                        lifetime: ''
+                    },
                 },
                 {
                     login: 'ivan',
@@ -27,7 +34,12 @@ export class FabCar extends Contract {
                     balance: 50,
                     cars: [],
                     tickets: [],
-                    role: Roles.DPS
+                    role: Roles.DPS,
+                    license: {
+                        id: '',
+                        category: [],
+                        lifetime: ''
+                    },
                 },
                 {
                     login: 'semen',
@@ -37,7 +49,12 @@ export class FabCar extends Contract {
                     balance: 50,
                     cars: [],
                     tickets: [],
-                    role: Roles.User
+                    role: Roles.User,
+                    license: {
+                        id: '',
+                        category: [],
+                        lifetime: ''
+                    },
                 },
                 {
                     login: 'petr',
@@ -47,7 +64,12 @@ export class FabCar extends Contract {
                     balance: 50,
                     cars: [],
                     tickets: [],
-                    role: Roles.User
+                    role: Roles.User,
+                    license: {
+                        id: '',
+                        category: [],
+                        lifetime: ''
+                    },
                 },
 
             ],
@@ -101,9 +123,27 @@ export class FabCar extends Contract {
         return data;
     }
 
+    public async getTickets(ctx: Context, login: string): Promise<string>{
+        const users: IUser[] = JSON.parse(await this.getAllUsers(ctx));
+        const user = users.find((el) => el.login === login);
+        return JSON.stringify(user.tickets);
+    }
+
     private async getAllLicenses(ctx: Context): Promise<string> {
         const data = (await ctx.stub.getState('licenses')).toString();
         return data;
+    }
+
+    public async getLicense(ctx: Context, login: string): Promise<string>{
+        const users: IUser[] = JSON.parse(await this.getAllUsers(ctx));
+        const user = users.find((el) => el.login === login);
+        return JSON.stringify(user.license);
+    }
+
+    public async getCars(ctx: Context, login: string): Promise<string>{
+        const users: IUser[] = JSON.parse(await this.getAllUsers(ctx));
+        const user = users.find((el) => el.login === login);
+        return JSON.stringify(user.cars);
     }
 
     public async getBalance(ctx: Context, login: string): Promise<number> {
@@ -127,7 +167,12 @@ export class FabCar extends Contract {
             password,
             FIO,
             experience,
-            balance: 0,
+            balance: 50,
+            license: {
+                id: '',
+                category: [],
+                lifetime: ''
+            },
             cars: [],
             tickets: [],
             role: Roles.User
@@ -162,10 +207,11 @@ export class FabCar extends Contract {
             lifetime,
             category: [`${category}`]
         };
+        await ctx.stub.putState('users', Buffer.from(JSON.stringify(users)));
         return JSON.stringify('Удостоверение успешно добавлено');
     }
 
-    public async addCar(ctx: Context, login: string, title: string, category: string): Promise<string> {
+    public async addCar(ctx: Context, login: string, title: string, price: string, lifetime: string, category: string): Promise<string> {
         const users: IUser[] = JSON.parse(await this.getAllUsers(ctx));
         const userIndex = users.findIndex((el) => el.login === login);
         if (userIndex === -1) {
@@ -177,6 +223,8 @@ export class FabCar extends Contract {
         }
         const car: ICar = {
             title,
+            price,
+            lifetime,
             category
         };
         users[userIndex].cars.push(car);
@@ -184,33 +232,7 @@ export class FabCar extends Contract {
         return JSON.stringify('Машина успешно добавлена');
     }
 
-    public async payTicket(ctx: Context, login: string, ticketId: string): Promise<string> {
-        const users: IUser[] = JSON.parse(await this.getAllUsers(ctx));
-        const userIndex = users.findIndex((el) => el.login === login);
-        const bankIndex = users.findIndex((el) => el.login === 'bank');
-        const ticketIndex = users[userIndex].tickets.findIndex((el) => el.id === ticketId);
-        if (ticketIndex === -1) {
-            return JSON.stringify('Неправильный номер штрафа');
-        }
-        const date = Math.floor(new Date().getTime() / 1000);
-        const ticketDate = Math.floor(new Date(users[userIndex].tickets[ticketIndex].issuingTime).getTime() / 1000);
-        console.log(date, ticketDate);
-        console.log(date - ticketDate < 432000);
-        if (date - ticketDate < 432000) {
-            users[userIndex].balance -= 5;
-            users[bankIndex].balance += 5;
-            users[userIndex].tickets.splice(ticketIndex, 1);
-        } else {
-            users[userIndex].balance -= 10;
-            users[bankIndex].balance += 10;
-            users[userIndex].tickets.splice(ticketIndex, 1);
-        }
-        console.log(users[userIndex].tickets);
-        await ctx.stub.putState('users', Buffer.from(JSON.stringify(users)));
-        return JSON.stringify('Штраф успешно оплачен');
-    }
-
-    public async giveTicket(ctx: Context, login: string, idLicense: string): Promise<string> {
+    public async giveTicket(ctx: Context, login: string, idLicense: string, issuingTime: string): Promise<string> {
         const users: IUser[] = JSON.parse(await this.getAllUsers(ctx));
         const userIndex = users.findIndex((el) => el.login === login);
         if (users[userIndex].role !== Roles.DPS) {
@@ -222,7 +244,7 @@ export class FabCar extends Contract {
         }
         const ticket: ITicket = {
             id: users[violatorIndex].tickets.length.toString(),
-            issuingTime: new Date().getTime().toString(),
+            issuingTime: issuingTime,
         };
         console.log(ticket);
         users[violatorIndex].tickets.push(ticket);
@@ -230,7 +252,30 @@ export class FabCar extends Contract {
         return JSON.stringify('Штраф успешно выписан');
     }
 
-    public async extensionLicense(ctx: Context, login: string): Promise<string> {
+    public async payTicket(ctx: Context, login: string, ticketId: string, date: string): Promise<string> {
+        const users: IUser[] = JSON.parse(await this.getAllUsers(ctx));
+        const userIndex = users.findIndex((el) => el.login === login);
+        const bankIndex = users.findIndex((el) => el.login === 'bank');
+        const ticketIndex = users[userIndex].tickets.findIndex((el) => el.id === ticketId);
+        if (ticketIndex === -1) {
+            return JSON.stringify('Неправильный номер штрафа');
+        }
+        const ticketDate = Math.floor(+users[userIndex].tickets[ticketIndex].issuingTime / 1000);
+        if (+date - ticketDate < 300) {
+            users[userIndex].balance -= 5;
+            users[bankIndex].balance += 5;
+            users[userIndex].tickets.splice(ticketIndex, 1);
+        }else {
+            users[userIndex].balance -= 10;
+            users[bankIndex].balance += 10;
+            users[userIndex].tickets.splice(ticketIndex, 1);
+        }
+        console.log(users[userIndex].tickets);
+        await ctx.stub.putState('users', Buffer.from(JSON.stringify(users)));
+        return JSON.stringify('Штраф успешно оплачен');
+    }
+
+    public async extendLicense(ctx: Context, login: string, date: string): Promise<string> {
         const users: IUser[] = JSON.parse(await this.getAllUsers(ctx));
         const userIndex = users.findIndex((el) => el.login === login);
         if (userIndex === -1) {
@@ -239,9 +284,9 @@ export class FabCar extends Contract {
         if (users[userIndex].tickets.length > 0) {
             return JSON.stringify('Для продления водительских, нужно оплатить все штрафы');
         }
-        const date = Math.floor(new Date().getTime() / 1000);
         const licenseDate = Math.floor(new Date(users[userIndex].license.lifetime).getTime() / 1000);
-        if (licenseDate - date > 2678400) {
+        console.log(licenseDate);
+        if (licenseDate - (+date) < 1800) {
             const newDate = new Date((licenseDate + 2678400)*1000).toString();
             users[userIndex].license.lifetime = newDate;
             await ctx.stub.putState('users', Buffer.from(JSON.stringify(users)));
@@ -259,7 +304,7 @@ export class FabCar extends Contract {
         }
         const existCategory = users[userIndex].license.category.indexOf(category);
         if(existCategory !== -1){
-            return JSON.stringify("")
+            return JSON.stringify("У вас уже есть эта категория")
         }
         users[userIndex].license.category.push(category);
         await ctx.stub.putState('users', Buffer.from(JSON.stringify(users)));
